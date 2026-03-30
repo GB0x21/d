@@ -18,7 +18,9 @@ DENY_PHRASES = [
 
 LOCATION_PATTERN = re.compile(
     r"(?:store|location)\s*#?\s*\d{4}|"
-    r"\b(?:Bay Area|SF|San Francisco|Oakland|San Jose|Fremont|Concord|Hayward)\b",
+    r"\b(?:Bay Area|SF|San Francisco|Oakland|San Jose|Fremont|Concord|Hayward|"
+    r"Pittsburg|Brentwood|Martinez|Hercules|San Ramon|El Cerrito|Emeryville|"
+    r"San Leandro|Fairfield|Dublin|Livermore|San Rafael|Vallejo|Napa)\b",
     re.IGNORECASE,
 )
 
