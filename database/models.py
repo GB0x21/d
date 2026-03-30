@@ -1,71 +1,65 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
-import datetime
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reddit_id TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    selftext TEXT DEFAULT '',
+    url TEXT NOT NULL,
+    permalink TEXT NOT NULL,
+    subreddit TEXT NOT NULL,
+    author TEXT DEFAULT '',
+    flair TEXT DEFAULT '',
+    score INTEGER DEFAULT 0,
+    num_comments INTEGER DEFAULT 0,
+    price_detected REAL,
+    original_price REAL,
+    discount_pct REAL,
+    location_detected TEXT DEFAULT '',
+    store_number TEXT DEFAULT '',
+    has_image INTEGER DEFAULT 0,
+    bot_score INTEGER DEFAULT 0,
+    alert_level TEXT DEFAULT '',
+    created_utc REAL NOT NULL,
+    discovered_at TEXT NOT NULL DEFAULT (datetime('now')),
+    alerted_at TEXT
+);
 
-Base = declarative_base()
+CREATE INDEX IF NOT EXISTS idx_posts_reddit_id ON posts(reddit_id);
+CREATE INDEX IF NOT EXISTS idx_posts_created_utc ON posts(created_utc);
+CREATE INDEX IF NOT EXISTS idx_posts_subreddit ON posts(subreddit);
+CREATE INDEX IF NOT EXISTS idx_posts_alert_level ON posts(alert_level);
 
-class Product(Base):
-    __tablename__ = 'products'
-    
-    sku = Column(String, primary_key=True)
-    title = Column(String)
-    url = Column(String)
-    last_price = Column(Float)
-    last_updated = Column(DateTime, default=datetime.datetime.utcnow)
-    
-    price_history = relationship("PriceHistory", back_populates="product")
+CREATE TABLE IF NOT EXISTS alert_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    alert_type TEXT NOT NULL,
+    message_text TEXT NOT NULL,
+    sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (post_id) REFERENCES posts(id)
+);
 
-class PriceHistory(Base):
-    __tablename__ = 'price_history'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    sku = Column(String, ForeignKey('products.sku'))
-    store_id = Column(String)
-    price = Column(Float)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
-    
-    product = relationship("Product", back_populates="price_history")
+CREATE TABLE IF NOT EXISTS comment_updates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    reddit_comment_id TEXT UNIQUE NOT NULL,
+    body TEXT NOT NULL,
+    sentiment TEXT DEFAULT 'neutral',
+    author TEXT DEFAULT '',
+    created_utc REAL NOT NULL,
+    discovered_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (post_id) REFERENCES posts(id)
+);
 
-class DatabaseManager:
-    def __init__(self, db_url="sqlite:///hd_bot.db"):
-        self.engine = create_engine(db_url)
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
+CREATE INDEX IF NOT EXISTS idx_comment_updates_post_id ON comment_updates(post_id);
 
-    def update_price(self, sku, title, url, store_id, current_price):
-        session = self.Session()
-        try:
-            # Buscar o crear producto
-            product = session.query(Product).filter_by(sku=sku).first()
-            if not product:
-                product = Product(sku=sku, title=title, url=url, last_price=current_price)
-                session.add(product)
-            else:
-                product.last_price = current_price
-                product.last_updated = datetime.datetime.utcnow()
-
-            # Registrar historial
-            history = PriceHistory(sku=sku, store_id=store_id, price=current_price)
-            session.add(history)
-            
-            session.commit()
-            return product
-        except Exception as e:
-            session.rollback()
-            print(f"DB Error: {e}")
-            return None
-        finally:
-            session.close()
-
-    def get_previous_price(self, sku, store_id):
-        session = self.Session()
-        try:
-            # Obtener el penúltimo precio registrado para este SKU y tienda
-            history = session.query(PriceHistory)\
-                .filter_by(sku=sku, store_id=store_id)\
-                .order_by(PriceHistory.timestamp.desc())\
-                .offset(1).first()
-            return history.price if history else None
-        finally:
-            session.close()
+CREATE TABLE IF NOT EXISTS daily_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT UNIQUE NOT NULL,
+    total_posts_scanned INTEGER DEFAULT 0,
+    total_alerts_sent INTEGER DEFAULT 0,
+    urgent_alerts INTEGER DEFAULT 0,
+    high_alerts INTEGER DEFAULT 0,
+    top_subreddit TEXT DEFAULT '',
+    top_keyword TEXT DEFAULT ''
+);
+"""
